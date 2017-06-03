@@ -7,14 +7,17 @@
 define([
   'intern',
   'intern!object',
+  'intern/chai!assert',
   'tests/lib/helpers',
   'tests/functional/lib/helpers'
-], function (intern, registerSuite, TestHelpers, FunctionalHelpers) {
+], function (intern, registerSuite, assert, TestHelpers, FunctionalHelpers) {
 
   const config = intern.config;
   const SIGNUP_URL = config.fxaContentRoot + 'signup';
+  const SIGNIN_URL = config.fxaContentRoot + 'signin';
   const PASSWORD = 'password';
 
+  let client;
   let email;
   let secondaryEmail;
 
@@ -24,10 +27,14 @@ define([
   const fillOutResetPassword = FunctionalHelpers.fillOutResetPassword;
   const fillOutSignIn = FunctionalHelpers.fillOutSignIn;
   const fillOutSignUp = FunctionalHelpers.fillOutSignUp;
+  const getUnblockInfo = FunctionalHelpers.getUnblockInfo;
   const openPage = FunctionalHelpers.openPage;
+  const openVerificationLinkInDifferentBrowser = FunctionalHelpers.openVerificationLinkInDifferentBrowser;
   const openVerificationLinkInSameTab = FunctionalHelpers.openVerificationLinkInSameTab;
+  const respondToWebChannelMessage = FunctionalHelpers.respondToWebChannelMessage;
   const testElementExists = FunctionalHelpers.testElementExists;
   const testElementTextEquals = FunctionalHelpers.testElementTextEquals;
+  const testElementTextInclude = FunctionalHelpers.testElementTextInclude;
   const testErrorTextInclude = FunctionalHelpers.testErrorTextInclude;
   const type = FunctionalHelpers.type;
   const visibleByQSA = FunctionalHelpers.visibleByQSA;
@@ -38,6 +45,7 @@ define([
     beforeEach: function () {
       email = TestHelpers.createEmail();
       secondaryEmail = TestHelpers.createEmail();
+      client = FunctionalHelpers.getFxaClient();
 
       return this.remote.then(clearBrowserState());
     },
@@ -144,6 +152,86 @@ define([
         .then(openPage(SIGNUP_URL, '#fxa-signup-header'))
         .then(fillOutSignUp(email, PASSWORD))
         .then(testElementExists('#fxa-settings-content'));
+    },
+
+    'unblock code is sent to secondary emails': function () {
+      email = TestHelpers.createEmail('blocked{id}');
+
+      return this.remote
+        .then(createUser(email, PASSWORD, { preVerified: true }))
+        .then(function (result) {
+          return client.recoveryEmailCreate(result.sessionToken, secondaryEmail);
+        })
+        .then(fillOutSignIn(email, PASSWORD))
+        .then(getUnblockInfo(email, 0))
+        .then(testElementTextInclude('.verification-email-message', email))
+        .then(getUnblockInfo(email, 0))
+        .then(function (unblockInfo) {
+          return this.parent
+            .then(type('#unblock_code', '   ' + unblockInfo.unblockCode));
+        })
+        .then(click('button[type=submit]'))
+
+        .then(testElementExists('#fxa-settings-header'))
+        .then(openVerificationLinkInSameTab(secondaryEmail, 0))
+        .then(click('#emails .settings-unit-stub button'))
+        .then(testElementExists('.verified'))
+        .then(click('#signout'))
+        .then(fillOutSignIn(email, PASSWORD))
+        .then(testElementTextInclude('.verification-email-message', email))
+        .then(getUnblockInfo(email, 0))
+        .then(function (unblockInfo) {
+          // original email gets the unblock code
+          assert.ok(unblockInfo.unblockCode);
+        })
+        .then(getUnblockInfo(secondaryEmail, 1))
+        .then(function (unblockInfo) {
+          return this.parent
+            .then(type('#unblock_code', '   ' + unblockInfo.unblockCode));
+        })
+        .then(click('button[type=submit]'))
+
+        .then(testElementExists('#fxa-settings-header'));
+    },
+
+
+    'signin confirmation is sent to secondary emails': function () {
+      email = TestHelpers.createEmail('sync{id}');
+      const PAGE_SIGNIN_DESKTOP = SIGNIN_URL + '?context=fx_desktop_v3&service=sync&forceAboutAccounts=true';
+      const SETTINGS_URL = config.fxaContentRoot + 'settings?context=fx_desktop_v3&service=sync&forceAboutAccounts=true';
+
+      return this.remote
+        .then(createUser(email, PASSWORD, { preVerified: true }))
+        .then(function (result) {
+          return client.recoveryEmailCreate(result.sessionToken, secondaryEmail);
+        })
+        .then(openPage(PAGE_SIGNIN_DESKTOP, '#fxa-signin-header'))
+        .then(respondToWebChannelMessage('fxaccounts:can_link_account', { ok: true } ))
+        .then(fillOutSignIn(email, PASSWORD))
+
+        .then(testElementExists('#fxa-confirm-signin-header'))
+        .then(openVerificationLinkInDifferentBrowser(email))
+
+        // wait until account data is in localstorage before redirecting
+        .then(FunctionalHelpers.pollUntil(function () {
+          var accounts = Object.keys(JSON.parse(localStorage.getItem('__fxa_storage.accounts')) || {});
+          return accounts.length === 1 ? true : null;
+        }, [], 10000))
+
+        .then(openPage(SETTINGS_URL, '#fxa-settings-header'))
+        .then(testElementExists('#fxa-settings-header'))
+        .then(openVerificationLinkInSameTab(secondaryEmail, 0))
+        .then(click('#emails .settings-unit-stub button'))
+        .then(testElementExists('.verified'))
+
+        .then(clearBrowserState())
+
+        .then(openPage(PAGE_SIGNIN_DESKTOP, '#fxa-signin-header'))
+        .then(respondToWebChannelMessage('fxaccounts:can_link_account', { ok: true } ))
+        .then(fillOutSignIn(email, PASSWORD))
+        .then(testElementExists('#fxa-confirm-signin-header'))
+
+        .then(openVerificationLinkInDifferentBrowser(secondaryEmail, 1));
     }
   });
 });
