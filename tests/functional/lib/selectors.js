@@ -12,6 +12,10 @@ define([], function () {
       ERROR: '.error',
       HEADER: '#fxa-400-header'
     },
+    CHOOSE_WHAT_TO_SYNC: {
+      HEADER: '#fxa-choose-what-to-sync-header',
+      SUBMIT: 'button[type=submit]'
+    },
     CONFIRM_SIGNIN: {
       HEADER: '#fxa-confirm-signin-header'
     },
@@ -36,10 +40,17 @@ define([], function () {
       HEADER: '#fxa-signin-header',
       PASSWORD: 'input[type=password]'
     },
+    SIGNIN_COMPLETE: {
+      HEADER: '#fxa-sign-in-complete-header'
+    },
     SIGNUP: {
+      CUSTOMIZE_SYNC_CHECKBOX: '#customize-sync',
       EMAIL: 'input[type=email]',
       HEADER: '#fxa-signup-header',
       LINK_SIGN_IN: 'a#have-account'
+    },
+    SIGNUP_COMPLETE: {
+      HEADER: '#fxa-sign-up-complete-header'
     },
     SMS_LEARN_MORE: {
       HEADER: '#websites-notice'
