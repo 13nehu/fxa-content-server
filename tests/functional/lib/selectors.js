@@ -36,6 +36,9 @@ define([], function () {
       HEADER: '#fxa-signin-header',
       PASSWORD: 'input[type=password]'
     },
+    SIGNIN_COMPLETE: {
+      HEADER: '#fxa-sign-in-complete-header'
+    },
     SIGNUP: {
       EMAIL: 'input[type=email]',
       HEADER: '#fxa-signup-header',
